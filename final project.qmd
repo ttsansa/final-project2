@@ -1,0 +1,113 @@
+---
+title: "Final Project"
+author: "Chishan"
+format: html
+execute:
+  echo: false
+  message: false
+  warning: false
+---
+
+##read data
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(gtsummary)
+library(broom)
+library(here)
+obj_names <- load(here::here("diabetes.rda"))  
+obj_names 
+if (!"diabetes" %in% obj_names) diabetes <- get(obj_names[1])
+if (!"diabetes" %in% obj_names) diabetes <- get(obj_names[1])
+exists("diabetes")
+class(diabetes)
+dim(diabetes)
+names(diabetes)
+head(diabetes, 10)
+dplyr::glimpse(diabetes)
+```
+
+##clean data
+```{r}
+dm <- diabetes %>%
+  rename(
+    glucose = `glucose_mg-dl`,
+    dbp     = `dbp_mm-hg`,
+    insulin = `insulin_microiu-ml`
+  )
+readr::write_csv(dm, here::here("diabetes_clean.csv"))
+```
+
+## descriptive statistics
+```{r}
+#| label: tbl-desc
+#| tbl-cap: "Descriptive statistics by 5-year diabetes status"
+tbl1 <- tbl_summary(
+  dm,
+  by = diabetes_5y,
+  include = c(diabetes_5y, pregnancy_num, glucose, dbp, triceps_mm,
+              insulin, bmi, pedigree, age),
+  label = list(
+    pregnancy_num ~ "Pregnancies",
+    glucose       ~ "Glucose (mg/dL)",
+    dbp           ~ "Diastolic BP (mmHg)",
+    triceps_mm    ~ "Triceps (mm)",
+    insulin       ~ "Insulin (µIU/mL)",
+    bmi           ~ "BMI",
+    pedigree      ~ "Diabetes pedigree",
+    age           ~ "Age (y)"
+  ),
+  missing_text = "Missing"
+) |>
+  add_p(test = list(
+    all_continuous()  ~ "t.test",
+    all_categorical() ~ "chisq.test"
+  )) |>
+  add_overall(col_label = "**Total**") |>
+  bold_labels() |>
+  modify_footnote(update = everything() ~ NA) |>
+  modify_header(label = "**Variable**", p.value = "**P**")
+
+tbl1
+```
+
+`r gtsummary::inline_text(tbl1, variable = glucose, column = "Overall", pattern = "{mean}")`
+See Table @tbl-desc for descriptive statistics by 5-year diabetes status.
+
+## regression
+```{r}
+#| label: tbl-uv
+#| tbl-cap: "Univariable odds ratios (OR) for 5-year diabetes"
+tbl2 <- tbl_uvregression(
+  dm,
+  y = diabetes_5y,
+  include = c(glucose, bmi, age, pregnancy_num),
+  method = glm,
+  method.args = list(family = binomial()),
+  exponentiate = TRUE
+)
+tbl2
+```
+
+##function
+```{r}
+mean_simple <- function(x) mean(x, na.rm = TRUE)
+mean_simple(diabetes[["glucose_mg-dl"]])
+```
+Overall mean glucose is `r round(mean_simple(diabetes[["glucose_mg-dl"]]), 1)` mg/dL
+
+##figure
+```{r}
+#| label: fig-scatter
+#| fig-cap: "BMI vs. Glucose"
+p <- ggplot(dm) + geom_point(aes(bmi, glucose))
+p
+
+ggsave(plot = p, filename = here::here("fig.pdf"))
+```
+As shown in Figure @fig-scatter, BMI and glucose show a positive association.
+
+## brief description
+I used the diabetes dataset from the course GitHub materials (loaded from diabetes.rda). Variables include pregnancies, glucose (mg/dL), diastolic BP (mmHg), triceps skinfold (mm), insulin (µIU/mL), BMI, diabetes pedigree, age (years), and 5-year diabetes status (pos/neg).
+```
